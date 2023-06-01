@@ -1,20 +1,52 @@
-const API_KEY = RS82KK4IS33QY7O6;
+// Alpha VantageのAPIキー
+const apiKey = 'RS82KK4IS33QY7O6';
 
-// S&P 500企業の株価データを取得する関数
-function fetchStockData() {
-  const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=SPY&interval=5min&apikey=${API_KEY}`;
-
-  fetch(url)
-    .then(response => response.json())
-    .then(data => {
-      const latestData = data['Time Series (5min)']['最新のタイムスタンプ']; // 取得したデータから必要な情報を抽出してください
-      const stockElement = document.getElementById('stock-data');
-      stockElement.innerText = `最新の株価: ${latestData}`; // 株価データを表示する要素にデータをセットしてください
-    })
-    .catch(error => {
-      console.log('エラーが発生しました:', error);
-    });
+// S&P 500企業のシンボル一覧を取得する関数
+async function fetchSymbols() {
+  const response = await fetch('https://www.alphavantage.co/indices/symbols?index=sp500&apikey=' + apiKey);
+  const data = await response.json();
+  const symbols = data['symbols'].map(symbol => symbol['symbol']);
+  return symbols;
 }
 
-// ページがロードされたときに株価データを取得する
-window.addEventListener('load', fetchStockData);
+// 株価データを取得する関数
+async function fetchStockData() {
+  const symbols = await fetchSymbols();
+
+  const stockDataPromises = symbols.map(async symbol => {
+    const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`);
+    const data = await response.json();
+    return {
+      symbol: symbol,
+      price: data['Global Quote']['05. price']
+    };
+  });
+
+  const stockData = await Promise.all(stockDataPromises);
+  const sortedList = stockData.sort((a, b) => b.price - a.price);
+
+  displayCompanyList(sortedList);
+}
+
+// 企業一覧を表示する関数
+function displayCompanyList(sortedList) {
+  const stockListElement = document.getElementById('stock-list');
+  stockListElement.innerHTML = ''; // テーブルのデータをリセット
+
+  sortedList.forEach(company => {
+    const row = document.createElement('tr');
+
+    const nameCell = document.createElement('td');
+    nameCell.innerText = company.symbol;
+    row.appendChild(nameCell);
+
+    const priceCell = document.createElement('td');
+    priceCell.innerText = company.price;
+    row.appendChild(priceCell);
+
+    stockListElement.appendChild(row);
+  });
+}
+
+// 株価データの取得と表示の呼び出し
+fetchStockData();
